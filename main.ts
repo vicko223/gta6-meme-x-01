@@ -9,7 +9,7 @@
 // Local check (outside the grader's container):
 //   mkdir -p out && MAKEFUN_BOT_DIR=. MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const botDir = process.env.MAKEFUN_BOT_DIR ?? '/bot';
@@ -19,6 +19,23 @@ mkdirSync(outputDir, { recursive: true });
 
 const source = join(botDir, 'POST.json');
 const target = join(outputDir, 'POST.json');
+
+// Validate before handing over: POST.json must name one public X post, in the
+// shape the gate reads. A malformed address fails here, loudly, instead of
+// reaching the house as a broken entry link.
+let postUrl: unknown;
+try {
+  postUrl = JSON.parse(readFileSync(source, 'utf8'))?.url;
+} catch (err) {
+  console.error(`POST.json is not readable JSON: ${(err as Error).message}`);
+  process.exit(1);
+}
+const xPost = /^https:\/\/(x\.com|twitter\.com)\/[A-Za-z0-9_]+\/status\/\d+$/;
+if (typeof postUrl !== 'string' || !xPost.test(postUrl)) {
+  console.error(`POST.json url is not an X post address: ${String(postUrl)}`);
+  process.exit(1);
+}
+
 try {
   copyFileSync(source, target);
 } catch (err) {
